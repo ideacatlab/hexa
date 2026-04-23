@@ -9,8 +9,6 @@
 
             const targetText = this.allChecked ? 'select all' : 'deselect all'
 
-            // Find all elements that might be clickable toggle buttons
-            // Filament renders these as various elements (span, button, a) with click handlers
             const clickableSelectors = [
                 'span[x-on\\:click]',
                 'span[\\@click]',
@@ -21,10 +19,13 @@
                 '[wire\\:click]',
             ].join(', ')
 
-            const clickables = form.querySelectorAll(clickableSelectors)
+            // Scope to the active tab panel when tabs exist, otherwise the whole form
+            const activeTab = form.querySelector('.fi-sc-tabs-tab.fi-active')
+            const scope = activeTab || form
+
+            const clickables = scope.querySelectorAll(clickableSelectors)
 
             clickables.forEach(el => {
-                // Skip if this is our own toggle button
                 if (this.$el.contains(el)) return
 
                 const text = el.textContent.trim().toLowerCase()
