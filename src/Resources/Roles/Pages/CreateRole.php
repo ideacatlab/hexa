@@ -20,8 +20,12 @@ class CreateRole extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        if (config('hexa.hierarchy.enabled', false)) {
-            $data = $this->validateChildPermissions($data);
+        $plugin = filament('filament-hexa-lite');
+
+        if ($plugin->isScoped()) {
+            $scopingRole = $plugin->getScopingRole();
+            $data['parent_id'] = $scopingRole?->id;
+            $data = $this->validateChildPermissions($data, $scopingRole);
         }
 
         $data['access'] = $data['gates'] ?? [];

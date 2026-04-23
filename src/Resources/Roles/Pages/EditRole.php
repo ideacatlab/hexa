@@ -44,8 +44,10 @@ class EditRole extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        if (config('hexa.hierarchy.enabled', false)) {
-            $data = $this->validateChildPermissions($data);
+        $plugin = filament('filament-hexa-lite');
+
+        if ($plugin->isScoped()) {
+            $data = $this->validateChildPermissions($data, $plugin->getScopingRole());
         }
 
         $data['access'] = $data['gates'] ?? [];
@@ -55,10 +57,6 @@ class EditRole extends EditRecord
 
     protected function afterSave(): void
     {
-        if (! config('hexa.hierarchy.enabled', false)) {
-            return;
-        }
-
         $role = $this->getRecord();
 
         if ($role instanceof HexaRole && $role->children()->exists()) {

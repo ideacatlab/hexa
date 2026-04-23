@@ -14,7 +14,18 @@ class RolesTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn($query) => $query->where('guard', hexa()->guard()))
+            ->modifyQueryUsing(function ($query) {
+                $query->where('guard', hexa()->guard());
+
+                $plugin = filament('filament-hexa-lite');
+
+                if ($plugin->isScoped()) {
+                    $scopingRole = $plugin->getScopingRole();
+                    $query->where('parent_id', $scopingRole?->id);
+                } else {
+                    $query->whereNull('parent_id');
+                }
+            })
             ->columns([
                 TextColumn::make('name')
                     ->searchable()

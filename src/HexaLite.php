@@ -2,47 +2,57 @@
 
 namespace Hexters\HexaLite;
 
-use Filament\Panel;
 use Filament\Contracts\Plugin;
 use Filament\Navigation\NavigationItem;
+use Filament\Panel;
 use Filament\Support\Icons\Heroicon;
-use Hexters\HexaLite\Traits\GateTrait;
+use Hexters\HexaLite\Models\HexaRole;
 use Hexters\HexaLite\Resources\Roles\RoleResource;
-use Hexters\HexaLite\Resources\IAM\IAMResource;
-use Illuminate\Support\Facades\Config;
+use Hexters\HexaLite\Traits\GateTrait;
 
 class HexaLite implements Plugin
 {
     use GateTrait;
 
-    protected bool $iam = false;
+    protected ?\Closure $scopingRoleFn = null;
+
+    protected ?HexaRole $scopingRoleCache = null;
 
     public function getId(): string
     {
         return 'filament-hexa-lite';
     }
 
-    public function withIAM(): static
+    public function scopedToRole(\Closure $callback): static
     {
-        $this->iam = true;
+        $this->scopingRoleFn = $callback;
 
         return $this;
     }
 
-    public function hasIAM(): bool
+    public function isScoped(): bool
     {
-        return $this->iam;
+        return $this->scopingRoleFn !== null;
+    }
+
+    public function getScopingRole(): ?HexaRole
+    {
+        if ($this->scopingRoleCache !== null) {
+            return $this->scopingRoleCache;
+        }
+
+        if ($this->scopingRoleFn) {
+            $this->scopingRoleCache = ($this->scopingRoleFn)();
+        }
+
+        return $this->scopingRoleCache;
     }
 
     public function register(Panel $panel): void
     {
-        $resources = [RoleResource::class];
-
-        if ($this->iam) {
-            $resources[] = IAMResource::class;
-        }
-
-        $panel->resources($resources);
+        $panel->resources([
+            RoleResource::class,
+        ]);
     }
 
     public function boot(Panel $panel): void
@@ -50,7 +60,7 @@ class HexaLite implements Plugin
         $this->registerGates($panel);
         $this->registerGateList($panel);
 
-        $navItems = [
+        $panel->navigationItems([
             NavigationItem::make('hexa-roles')
                 ->label(fn (): string => $this->getNavigationLabel())
                 ->visible(fn () => hexa()->can('role.index'))
@@ -58,27 +68,9 @@ class HexaLite implements Plugin
                 ->isActiveWhen(fn () => request()->fullUrlIs(RoleResource::getUrl() . '*'))
                 ->icon(Heroicon::OutlinedLockClosed)
                 ->group(fn (): string => $this->getNavigationGroup()),
-        ];
-
-        if ($this->iam) {
-            $allGates = $this->discoverAllPanelGates();
-            Config::set('hexa-lite-iam-roles', $allGates);
-
-            $navItems[] = NavigationItem::make('hexa-iam')
-                ->label(fn (): string => $this->getIAMNavigationLabel())
-                ->visible(fn () => hexa()->can('iam.index'))
-                ->url(fn (): string => IAMResource::getUrl())
-                ->isActiveWhen(fn () => request()->fullUrlIs(IAMResource::getUrl() . '*'))
-                ->icon(Heroicon::OutlinedShieldCheck)
-                ->group(fn (): string => $this->getIAMNavigationGroup());
-        }
-
-        $panel->navigationItems($navItems);
+        ]);
     }
 
-    /**
-     * Get the navigation label for the Role & Permissions menu item.
-     */
     protected function getNavigationLabel(): string
     {
         $label = config('hexa.navigation.label', 'Role & Permissions');
@@ -90,34 +82,9 @@ class HexaLite implements Plugin
         return __($label);
     }
 
-    /**
-     * Get the navigation group for the Role & Permissions menu item.
-     */
     protected function getNavigationGroup(): string
     {
         $group = config('hexa.navigation.group', 'Settings');
-
-        if ($group instanceof \Closure) {
-            return $group();
-        }
-
-        return __($group);
-    }
-
-    protected function getIAMNavigationLabel(): string
-    {
-        $label = config('hexa.iam.label', 'IAM Roles');
-
-        if ($label instanceof \Closure) {
-            return $label();
-        }
-
-        return __($label);
-    }
-
-    protected function getIAMNavigationGroup(): string
-    {
-        $group = config('hexa.iam.group', 'Settings');
 
         if ($group instanceof \Closure) {
             return $group();

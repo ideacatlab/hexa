@@ -3,90 +3,64 @@
 namespace Hexters\HexaLite\Resources\Roles\Schemas;
 
 use Filament\Forms\Components\CheckboxList;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\ViewField;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\GridDirection;
-use Hexters\HexaLite\Models\HexaRole;
 use Illuminate\Support\Str;
 
 class RoleForm
 {
     public static function configure(Schema $schema): Schema
     {
-        $hierarchyEnabled = config('hexa.hierarchy.enabled', false);
+        $plugin = filament('filament-hexa-lite');
+        $scopingRole = $plugin->getScopingRole();
+        $parentPermissions = $scopingRole?->getFlatPermissions();
 
         $permissions = collect(config('hexa-lite-roles'))
-            ->map(function ($role) use ($hierarchyEnabled) {
+            ->map(function ($role) use ($parentPermissions) {
                 $key = Str::slug($role['name'], '_');
 
-                $checkboxList = CheckboxList::make("gates.{$key}")
-                    ->searchable()
-                    ->columns(2)
-                    ->gridDirection(GridDirection::Row)
-                    ->hiddenLabel()
-                    ->bulkToggleable()
-                    ->options($role['names']);
+                $options = $role['names'];
 
-                if ($hierarchyEnabled) {
-                    $checkboxList->disableOptionWhen(function (string $value, Get $get) {
-                        $parentId = $get('parent_id');
-                        if (! $parentId) {
-                            return false;
-                        }
-                        $parent = HexaRole::find($parentId);
-                        if (! $parent) {
-                            return false;
-                        }
+                if ($parentPermissions !== null) {
+                    $options = array_filter(
+                        $options,
+                        fn ($label, $permKey) => in_array($permKey, $parentPermissions),
+                        ARRAY_FILTER_USE_BOTH
+                    );
+                }
 
-                        return ! in_array($value, $parent->getFlatPermissions());
-                    });
+                if (empty($options)) {
+                    return null;
                 }
 
                 return Section::make($role['name'])
                     ->collapsed(false)
-                    ->schema([$checkboxList]);
-            });
-
-        $components = [
-            TextInput::make('name')
-                ->label(__('Role Name'))
-                ->maxLength(100)
-                ->placeholder(__('Supervisor'))
-                ->required(),
-        ];
-
-        if ($hierarchyEnabled) {
-            $components[] = Select::make('parent_id')
-                ->label(__('Parent Role'))
-                ->placeholder(__('None (top-level role)'))
-                ->options(function (?HexaRole $record) {
-                    $query = HexaRole::query()
-                        ->where('guard', hexa()->guard())
-                        ->whereNull('parent_id');
-
-                    if ($record) {
-                        $query->where('id', '!=', $record->id);
-                    }
-
-                    return $query->pluck('name', 'id');
-                })
-                ->helperText(__('Child roles inherit permissions from their parent. Only permissions the parent has can be assigned.'))
-                ->live()
-                ->nullable();
-        }
-
-        $components[] = ViewField::make('checkall')
-            ->label(__('Check / Uncheck all'))
-            ->view('hexa::role.toggle-button');
+                    ->schema([
+                        CheckboxList::make("gates.{$key}")
+                            ->searchable()
+                            ->columns(2)
+                            ->gridDirection(GridDirection::Row)
+                            ->hiddenLabel()
+                            ->bulkToggleable()
+                            ->options($options),
+                    ]);
+            })
+            ->filter();
 
         return $schema
             ->columns(1)
             ->components([
-                ...$components,
+                TextInput::make('name')
+                    ->label(__('Role Name'))
+                    ->maxLength(100)
+                    ->placeholder(__('Supervisor'))
+                    ->required(),
+                ViewField::make('checkall')
+                    ->label(__('Check / Uncheck all'))
+                    ->view('hexa::role.toggle-button'),
                 ...$permissions,
             ]);
     }

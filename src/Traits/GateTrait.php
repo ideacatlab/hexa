@@ -57,36 +57,6 @@ trait GateTrait
         return $gates;
     }
 
-    public function discoverAllPanelGates(): array
-    {
-        $allGates = [];
-
-        foreach (Filament::getPanels() as $panel) {
-            try {
-                $plugin = $panel->getPlugin('filament-hexa-lite');
-            } catch (\Exception $e) {
-                continue;
-            }
-
-            $panelId = $panel->getId();
-            $panelGates = $this->callGates($panel)
-                ->map(function ($component) {
-                    return [
-                        'name' => app($component)->roleName(),
-                        'names' => app($component)->defineGates(),
-                    ];
-                })
-                ->values()
-                ->toArray();
-
-            if (! empty($panelGates)) {
-                $allGates[$panelId] = $panelGates;
-            }
-        }
-
-        return $allGates;
-    }
-
     protected function registerGates(Panel $panel)
     {
         collect($this->callGates($panel))
