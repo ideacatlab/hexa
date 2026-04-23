@@ -18,6 +18,8 @@ class HexaLite implements Plugin
 
     protected ?HexaRole $scopingRoleCache = null;
 
+    protected array $crossPanelIds = [];
+
     public function getId(): string
     {
         return 'filament-hexa-lite';
@@ -46,6 +48,18 @@ class HexaLite implements Plugin
         }
 
         return $this->scopingRoleCache;
+    }
+
+    public function discoverPermissionsFrom(array $panelIds): static
+    {
+        $this->crossPanelIds = $panelIds;
+
+        return $this;
+    }
+
+    public function getCrossPanelIds(): array
+    {
+        return $this->crossPanelIds;
     }
 
     public function register(Panel $panel): void

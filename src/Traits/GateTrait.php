@@ -28,6 +28,24 @@ trait GateTrait
                 return $data;
             });
         Config::set(['hexa-lite-roles' => $rolesData]);
+
+        $plugin = filament('filament-hexa-lite');
+        $crossPanelIds = $plugin->getCrossPanelIds();
+
+        if (! empty($crossPanelIds)) {
+            $crossPanelRoles = [];
+            foreach ($crossPanelIds as $panelId) {
+                $otherPanel = Filament::getPanel($panelId);
+                $crossPanelRoles[$panelId] = $this->callGates($otherPanel)
+                    ->map(function ($component) {
+                        return [
+                            'name' => app($component)->roleName(),
+                            'names' => app($component)->defineGates(),
+                        ];
+                    })->values()->all();
+            }
+            Config::set(['hexa-lite-cross-panel-roles' => $crossPanelRoles]);
+        }
     }
 
     public function gates(Panel $panel)
