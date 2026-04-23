@@ -20,6 +20,10 @@ class HexaLite implements Plugin
 
     protected array $crossPanelIds = [];
 
+    protected ?string $navLabel = null;
+
+    protected ?string $navGroup = null;
+
     public function getId(): string
     {
         return 'filament-hexa-lite';
@@ -48,6 +52,20 @@ class HexaLite implements Plugin
         }
 
         return $this->scopingRoleCache;
+    }
+
+    public function navigationLabel(string $label): static
+    {
+        $this->navLabel = $label;
+
+        return $this;
+    }
+
+    public function navigationGroup(string $group): static
+    {
+        $this->navGroup = $group;
+
+        return $this;
     }
 
     public function discoverPermissionsFrom(array $panelIds): static
@@ -87,6 +105,10 @@ class HexaLite implements Plugin
 
     protected function getNavigationLabel(): string
     {
+        if ($this->navLabel !== null) {
+            return __($this->navLabel);
+        }
+
         $label = config('hexa.navigation.label', 'Role & Permissions');
 
         if ($label instanceof \Closure) {
@@ -98,6 +120,10 @@ class HexaLite implements Plugin
 
     protected function getNavigationGroup(): string
     {
+        if ($this->navGroup !== null) {
+            return __($this->navGroup);
+        }
+
         $group = config('hexa.navigation.group', 'Settings');
 
         if ($group instanceof \Closure) {
