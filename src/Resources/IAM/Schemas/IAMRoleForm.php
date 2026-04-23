@@ -1,6 +1,6 @@
 <?php
 
-namespace Hexters\HexaLite\Resources\Roles\Schemas;
+namespace Hexters\HexaLite\Resources\IAM\Schemas;
 
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Select;
@@ -13,15 +13,25 @@ use Filament\Support\Enums\GridDirection;
 use Hexters\HexaLite\Models\HexaRole;
 use Illuminate\Support\Str;
 
-class RoleForm
+class IAMRoleForm
 {
     public static function configure(Schema $schema): Schema
     {
+        $allPanelGates = config('hexa-lite-iam-roles', []);
         $hierarchyEnabled = config('hexa.hierarchy.enabled', false);
 
-        $permissions = collect(config('hexa-lite-roles'))
-            ->map(function ($role) use ($hierarchyEnabled) {
-                $key = Str::slug($role['name'], '_');
+        $guardOptions = [];
+        foreach ($allPanelGates as $panelId => $resources) {
+            $guardOptions[$panelId] = ucfirst($panelId);
+        }
+
+        $permissionSections = [];
+        foreach ($allPanelGates as $panelId => $resources) {
+            $panelLabel = ucfirst($panelId) . ' Panel';
+            $resourceSections = [];
+
+            foreach ($resources as $resource) {
+                $key = $panelId . '_' . Str::slug($resource['name'], '_');
 
                 $checkboxList = CheckboxList::make("gates.{$key}")
                     ->searchable()
@@ -29,7 +39,7 @@ class RoleForm
                     ->gridDirection(GridDirection::Row)
                     ->hiddenLabel()
                     ->bulkToggleable()
-                    ->options($role['names']);
+                    ->options($resource['names']);
 
                 if ($hierarchyEnabled) {
                     $checkboxList->disableOptionWhen(function (string $value, Get $get) {
@@ -46,10 +56,15 @@ class RoleForm
                     });
                 }
 
-                return Section::make($role['name'])
+                $resourceSections[] = Section::make($resource['name'])
                     ->collapsed(false)
                     ->schema([$checkboxList]);
-            });
+            }
+
+            $permissionSections[] = Section::make($panelLabel)
+                ->collapsed(count($allPanelGates) > 1)
+                ->schema($resourceSections);
+        }
 
         $components = [
             TextInput::make('name')
@@ -57,16 +72,19 @@ class RoleForm
                 ->maxLength(100)
                 ->placeholder(__('Supervisor'))
                 ->required(),
+            Select::make('guard')
+                ->label(__('Guard'))
+                ->options($guardOptions)
+                ->default('web')
+                ->required(),
         ];
 
         if ($hierarchyEnabled) {
             $components[] = Select::make('parent_id')
                 ->label(__('Parent Role'))
                 ->placeholder(__('None (top-level role)'))
-                ->options(function (?HexaRole $record) {
-                    $query = HexaRole::query()
-                        ->where('guard', hexa()->guard())
-                        ->whereNull('parent_id');
+                ->options(function (?HexaRole $record, Get $get) {
+                    $query = HexaRole::query()->whereNull('parent_id');
 
                     if ($record) {
                         $query->where('id', '!=', $record->id);
@@ -87,7 +105,7 @@ class RoleForm
             ->columns(1)
             ->components([
                 ...$components,
-                ...$permissions,
+                ...$permissionSections,
             ]);
     }
 }

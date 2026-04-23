@@ -27,7 +27,7 @@ class HexaHelper
     public function panelGates(Panel $panel): array
     {
         try {
-            return $panel->getPlugin('filament-hexa')->gates($panel);
+            return $panel->getPlugin('filament-hexa-lite')->gates($panel);
         } catch (Exception $e) {
             return [];
         }
@@ -43,13 +43,12 @@ class HexaHelper
     private function userCan(Authenticatable $user, array|string $permissions)
     {
         if (method_exists($user, 'roles')) {
-            if (! empty($user->roles)) {
+            $roles = $user->roles->load('parent');
+            if ($roles->isNotEmpty()) {
                 $gates = [];
-                foreach ($user->roles as $role) {
-                    if (is_array($role->access)) {
-                        foreach ($role->access as $access) {
-                            $gates[] = $access;
-                        }
+                foreach ($roles as $role) {
+                    foreach ($role->getEffectivePermissions() as $permission) {
+                        $gates[] = $permission;
                     }
                 }
                 $permissions = is_array($permissions) ? $permissions : [$permissions];
