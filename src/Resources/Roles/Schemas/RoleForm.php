@@ -42,6 +42,9 @@ class RoleForm
 
         if ($hasCrossPanel) {
             $currentPanelId = Filament::getCurrentPanel()->getId();
+            $currentKeys = collect(config('hexa-lite-roles'))
+                ->map(fn ($role) => Str::slug($role['name'], '_'))
+                ->all();
 
             $tabs = [
                 Tabs\Tab::make(Str::headline($currentPanelId))
@@ -49,7 +52,11 @@ class RoleForm
             ];
 
             foreach ($crossPanelRoles as $panelId => $roles) {
-                $crossPermissions = static::buildPermissionSections(collect($roles), $parentPermissions);
+                $uniqueRoles = collect($roles)->filter(function ($role) use ($currentKeys) {
+                    return ! in_array(Str::slug($role['name'], '_'), $currentKeys);
+                });
+
+                $crossPermissions = static::buildPermissionSections($uniqueRoles, $parentPermissions);
 
                 if ($crossPermissions->isNotEmpty()) {
                     $tabs[] = Tabs\Tab::make(Str::headline($panelId))
