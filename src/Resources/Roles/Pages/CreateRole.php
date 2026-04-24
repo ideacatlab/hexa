@@ -28,7 +28,7 @@ class CreateRole extends CreateRecord
             $data = $this->validateChildPermissions($data, $scopingRole);
         }
 
-        $data['access'] = $data['gates'] ?? [];
+        $data['access'] = $this->flattenGates($data['gates'] ?? []);
         $data['guard'] = hexa()->guard();
         $data['created_by_name'] = Auth::user()->name;
 

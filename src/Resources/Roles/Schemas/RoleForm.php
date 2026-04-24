@@ -42,9 +42,6 @@ class RoleForm
 
         if ($hasCrossPanel) {
             $currentPanelId = Filament::getCurrentPanel()->getId();
-            $currentKeys = collect(config('hexa-lite-roles'))
-                ->map(fn ($role) => Str::slug($role['name'], '_'))
-                ->all();
 
             $tabs = [
                 Tabs\Tab::make(Str::headline($currentPanelId))
@@ -52,11 +49,11 @@ class RoleForm
             ];
 
             foreach ($crossPanelRoles as $panelId => $roles) {
-                $uniqueRoles = collect($roles)->filter(function ($role) use ($currentKeys) {
-                    return ! in_array(Str::slug($role['name'], '_'), $currentKeys);
-                });
-
-                $crossPermissions = static::buildPermissionSections($uniqueRoles, $parentPermissions);
+                $crossPermissions = static::buildPermissionSections(
+                    collect($roles),
+                    $parentPermissions,
+                    $panelId,
+                );
 
                 if ($crossPermissions->isNotEmpty()) {
                     $tabs[] = Tabs\Tab::make(Str::headline($panelId))
@@ -72,11 +69,12 @@ class RoleForm
         return $schema->columns(1)->components($components);
     }
 
-    protected static function buildPermissionSections(Collection $roles, ?array $parentPermissions): Collection
+    protected static function buildPermissionSections(Collection $roles, ?array $parentPermissions, ?string $fieldPrefix = null): Collection
     {
         return $roles
-            ->map(function ($role) use ($parentPermissions) {
+            ->map(function ($role) use ($parentPermissions, $fieldPrefix) {
                 $key = Str::slug($role['name'], '_');
+                $fieldKey = $fieldPrefix ? "{$fieldPrefix}__{$key}" : $key;
                 $options = $role['names'];
 
                 if ($parentPermissions !== null) {
@@ -94,7 +92,7 @@ class RoleForm
                 return Section::make($role['name'])
                     ->collapsed(false)
                     ->schema([
-                        CheckboxList::make("gates.{$key}")
+                        CheckboxList::make("gates.{$fieldKey}")
                             ->searchable()
                             ->columns(2)
                             ->gridDirection(GridDirection::Row)

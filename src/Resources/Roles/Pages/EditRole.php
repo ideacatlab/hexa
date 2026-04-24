@@ -8,6 +8,7 @@ use Hexters\HexaLite\Models\HexaRole;
 use Hexters\HexaLite\Resources\Roles\RoleResource;
 use Hexters\HexaLite\Resources\Roles\Widgets\RoleUsersWidget;
 use Hexters\HexaLite\Traits\ValidatesChildPermissions;
+use Illuminate\Support\Str;
 
 class EditRole extends EditRecord
 {
@@ -37,7 +38,19 @@ class EditRole extends EditRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        $data['gates'] = $data['access'];
+        $data['gates'] = $data['access'] ?? [];
+
+        $crossPanelRoles = config('hexa-lite-cross-panel-roles', []);
+
+        foreach ($crossPanelRoles as $panelId => $roles) {
+            foreach ($roles as $role) {
+                $key = Str::slug($role['name'], '_');
+
+                if (isset($data['access'][$key])) {
+                    $data['gates']["{$panelId}__{$key}"] = $data['access'][$key];
+                }
+            }
+        }
 
         return $data;
     }
@@ -50,7 +63,7 @@ class EditRole extends EditRecord
             $data = $this->validateChildPermissions($data, $plugin->getScopingRole());
         }
 
-        $data['access'] = $data['gates'] ?? [];
+        $data['access'] = $this->flattenGates($data['gates'] ?? []);
 
         return $data;
     }

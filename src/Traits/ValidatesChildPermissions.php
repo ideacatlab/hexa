@@ -3,6 +3,7 @@
 namespace Hexters\HexaLite\Traits;
 
 use Hexters\HexaLite\Models\HexaRole;
+use Illuminate\Support\Str;
 
 trait ValidatesChildPermissions
 {
@@ -25,6 +26,31 @@ trait ValidatesChildPermissions
         }
 
         return $data;
+    }
+
+    protected function flattenGates(array $gates): array
+    {
+        $access = [];
+
+        foreach ($gates as $key => $permissions) {
+            if (! is_array($permissions)) {
+                continue;
+            }
+
+            $canonicalKey = str_contains($key, '__')
+                ? Str::after($key, '__')
+                : $key;
+
+            if (isset($access[$canonicalKey])) {
+                $access[$canonicalKey] = array_values(array_unique(
+                    array_merge($access[$canonicalKey], $permissions)
+                ));
+            } else {
+                $access[$canonicalKey] = $permissions;
+            }
+        }
+
+        return $access;
     }
 
     protected function cascadeChildPermissions(HexaRole $role): void
