@@ -38,17 +38,34 @@ class EditRole extends EditRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        $data['gates'] = $data['access'] ?? [];
+        $access = $data['access'] ?? [];
+        $data['gates'] = [];
 
-        $crossPanelRoles = config('hexa-lite-cross-panel-roles', []);
+        foreach (config('hexa-lite-roles', []) as $role) {
+            $key = Str::slug($role['name'], '_');
 
-        foreach ($crossPanelRoles as $panelId => $roles) {
+            if (! isset($access[$key])) {
+                continue;
+            }
+
+            // Filter saved values to only those declared in this section.
+            // Defensive: keeps Filament/Laravel's Rule::in happy even if a
+            // permission slug was removed or moved between panels since
+            // the role was last saved.
+            $allowed = array_keys($role['names'] ?? []);
+            $data['gates'][$key] = array_values(array_intersect($access[$key], $allowed));
+        }
+
+        foreach (config('hexa-lite-cross-panel-roles', []) as $panelId => $roles) {
             foreach ($roles as $role) {
                 $key = Str::slug($role['name'], '_');
 
-                if (isset($data['access'][$key])) {
-                    $data['gates']["{$panelId}__{$key}"] = $data['access'][$key];
+                if (! isset($access[$key])) {
+                    continue;
                 }
+
+                $allowed = array_keys($role['names'] ?? []);
+                $data['gates']["{$panelId}__{$key}"] = array_values(array_intersect($access[$key], $allowed));
             }
         }
 

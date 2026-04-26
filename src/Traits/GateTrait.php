@@ -21,31 +21,103 @@ trait GateTrait
 
     public function registerGateList(Panel $panel)
     {
-        $rolesData = $this->callGates($panel)
-            ->map(function ($component) {
-                $data['name'] = app($component)->roleName();
-                $data['names'] = app($component)->defineGates();
-                return $data;
-            });
-        Config::set(['hexa-lite-roles' => $rolesData]);
+        $currentPanelRoles = $this->callGates($panel)
+            ->map(fn ($component) => [
+                'name' => app($component)->roleName(),
+                'names' => app($component)->defineGates(),
+            ])
+            ->values()
+            ->all();
 
         $plugin = filament('filament-hexa-lite');
         $crossPanelIds = $plugin->getCrossPanelIds();
 
-        if (! empty($crossPanelIds)) {
-            $crossPanelRoles = [];
-            foreach ($crossPanelIds as $panelId) {
-                $otherPanel = Filament::getPanel($panelId);
-                $crossPanelRoles[$panelId] = $this->callGates($otherPanel)
-                    ->map(function ($component) {
-                        return [
-                            'name' => app($component)->roleName(),
-                            'names' => app($component)->defineGates(),
-                        ];
-                    })->values()->all();
+        $crossPanelRoles = [];
+        foreach ($crossPanelIds as $panelId) {
+            if ($panelId === $panel->getId()) {
+                continue;
             }
-            Config::set(['hexa-lite-cross-panel-roles' => $crossPanelRoles]);
+
+            $otherPanel = Filament::getPanel($panelId);
+            $crossPanelRoles[$panelId] = $this->callGates($otherPanel)
+                ->map(fn ($component) => [
+                    'name' => app($component)->roleName(),
+                    'names' => app($component)->defineGates(),
+                ])
+                ->values()
+                ->all();
         }
+
+        // Resources that share a roleName across panels are the same logical resource.
+        // Merge their gate definitions into the current panel section (current wins on
+        // label collision) and drop the duplicate from the cross-panel list — otherwise
+        // the cross-panel CheckboxList shows fewer options than what the saved role
+        // actually contains and Laravel's Rule::in fails on submit with
+        // "The selected {tab} {resource} is invalid".
+        [$currentPanelRoles, $crossPanelRoles] = static::mergeSharedRoles($currentPanelRoles, $crossPanelRoles);
+
+        Config::set(['hexa-lite-roles' => $currentPanelRoles]);
+        Config::set(['hexa-lite-cross-panel-roles' => $crossPanelRoles]);
+    }
+
+    /**
+     * Merge cross-panel resources that share a roleName with a current-panel resource:
+     *  - union the gate definitions into the current panel entry (current panel labels win),
+     *  - remove the merged entries from the cross-panel list so they don't appear twice.
+     *
+     * @param  array<int, array{name: string, names: array<string, string>}>  $currentPanelRoles
+     * @param  array<string, array<int, array{name: string, names: array<string, string>}>>  $crossPanelRoles
+     * @return array{0: array<int, array{name: string, names: array<string, string>}>, 1: array<string, array<int, array{name: string, names: array<string, string>}>>}
+     */
+    protected static function mergeSharedRoles(array $currentPanelRoles, array $crossPanelRoles): array
+    {
+        $currentByName = [];
+        foreach ($currentPanelRoles as $i => $role) {
+            $currentByName[$role['name']] = $i;
+        }
+
+        $promotedAcrossPanels = [];
+
+        foreach ($crossPanelRoles as $panelId => $roles) {
+            $kept = [];
+
+            foreach ($roles as $role) {
+                $name = $role['name'];
+
+                // Already in the current panel — merge gate options into it.
+                if (isset($currentByName[$name])) {
+                    $i = $currentByName[$name];
+                    $currentPanelRoles[$i]['names'] = array_replace(
+                        $role['names'] ?? [],
+                        $currentPanelRoles[$i]['names'] ?? []
+                    );
+
+                    continue;
+                }
+
+                // Already promoted from an earlier cross panel — merge into that
+                // single cross-panel entry rather than emitting a second one.
+                if (isset($promotedAcrossPanels[$name])) {
+                    [$prevPanel, $prevIndex] = $promotedAcrossPanels[$name];
+                    $crossPanelRoles[$prevPanel][$prevIndex]['names'] = array_replace(
+                        $role['names'] ?? [],
+                        $crossPanelRoles[$prevPanel][$prevIndex]['names'] ?? []
+                    );
+
+                    continue;
+                }
+
+                $kept[] = $role;
+                $promotedAcrossPanels[$name] = [$panelId, count($kept) - 1];
+            }
+
+            $crossPanelRoles[$panelId] = $kept;
+        }
+
+        return [
+            $currentPanelRoles,
+            array_filter($crossPanelRoles, fn ($r) => $r !== []),
+        ];
     }
 
     public function gates(Panel $panel)
