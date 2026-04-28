@@ -23,7 +23,7 @@ trait GateTrait
     {
         $currentPanelRoles = $this->callGates($panel)
             ->map(fn ($component) => [
-                'name' => app($component)->roleName(),
+                'name' => (string) app($component)->roleName(),
                 'names' => app($component)->defineGates(),
             ])
             ->values()
@@ -41,7 +41,7 @@ trait GateTrait
             $otherPanel = Filament::getPanel($panelId);
             $crossPanelRoles[$panelId] = $this->callGates($otherPanel)
                 ->map(fn ($component) => [
-                    'name' => app($component)->roleName(),
+                    'name' => (string) app($component)->roleName(),
                     'names' => app($component)->defineGates(),
                 ])
                 ->values()

@@ -12,9 +12,13 @@ trait HasHexaLite
         return [];
     }
 
-    public function roleName()
+    public function roleName(): string
     {
-        return method_exists(__CLASS__, 'getModelLabel') ? static::getModelLabel() : Str::of(collect(explode('\\', get_class()))->last())->headline();
+        if (method_exists(__CLASS__, 'getModelLabel')) {
+            return (string) static::getModelLabel();
+        }
+
+        return (string) Str::of(collect(explode('\\', get_class()))->last())->headline();
     }
     
     public function gateIndexs()
